@@ -6,6 +6,7 @@
 <title>Pohybový management</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;1,9..144,400&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="palettes.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 /* Layout: sticky header with horse age, month navigator, calendar + editor side by side, stats and year view below */
@@ -105,6 +106,7 @@ details summary{cursor:pointer;font-weight:600}
     <h2 id="title"></h2>
     <button id="next" aria-label="Další měsíc">→</button>
     <button id="todayBtn">Dnes</button>
+    <button id="paletteBtn" aria-label="Změnit barevnou paletu">🎨</button>
     <button id="installBtn" hidden>Nainstalovat do počítače</button>
   </div>
 
@@ -443,6 +445,25 @@ document.getElementById("copyCsv").onclick=async()=>{
   catch(e){io.textContent="Schránka není dostupná, zkuste to znovu kliknutím.";}
 };
 
+/* ---------- palette switcher ---------- */
+const PALETTES=["default","cool","nature","sunset","ocean","lavender"];
+const PALETTE_NAMES={"default":"Klasická","cool":"Chladná","nature":"Přírodní","sunset":"Západ slunce","ocean":"Oceán","lavender":"Levandule"};
+let currentPalette="default";
+function loadPalette(){
+  try{currentPalette=localStorage.getItem("pm-palette")||"default";}catch(e){}
+  if(currentPalette!=="default")document.documentElement.dataset.palette=currentPalette;
+}
+function cyclePalette(){
+  const idx=PALETTES.indexOf(currentPalette);
+  currentPalette=PALETTES[(idx+1)%PALETTES.length];
+  if(currentPalette==="default")delete document.documentElement.dataset.palette;
+  else document.documentElement.dataset.palette=currentPalette;
+  try{localStorage.setItem("pm-palette",currentPalette);}catch(e){}
+  setStatus(`Paleta: ${PALETTE_NAMES[currentPalette]}`);
+  render();
+}
+document.getElementById("paletteBtn").onclick=cyclePalette;
+
 (async()=>{
   try{
     const desktop=await claude.use("desktop");
@@ -453,6 +474,7 @@ document.getElementById("copyCsv").onclick=async()=>{
     }
   }catch(e){}
 })();
+loadPalette();
 render();
 initStore();
 </script>
