@@ -72,7 +72,10 @@ function countMonth(y,m){
 
 /* ---------- render ---------- */
 function render(){
-  document.documentElement.style.setProperty("--accent",ACCENT[view.m]);
+  // Only set month accent if using default palette
+  if(currentPalette==="default"){
+    document.documentElement.style.setProperty("--accent",ACCENT[view.m]);
+  }
   document.getElementById("title").innerHTML=`${MONTHS[view.m]} ${view.y}<em>${TAG[view.m]}</em>`;
   renderMeta(); renderCal(); renderForm(); renderStats(); renderAlerts(); renderYear();
 }
@@ -291,13 +294,21 @@ const PALETTE_NAMES={"default":"Klasická","cool":"Chladná","nature":"Přírodn
 let currentPalette="default";
 function loadPalette(){
   try{currentPalette=localStorage.getItem("pm-palette")||"default";}catch(e){}
-  if(currentPalette!=="default")document.documentElement.dataset.palette=currentPalette;
+  if(currentPalette!=="default"){
+    document.documentElement.dataset.palette=currentPalette;
+  }else{
+    document.documentElement.style.setProperty("--accent",ACCENT[view.m]);
+  }
 }
 function cyclePalette(){
   const idx=PALETTES.indexOf(currentPalette);
   currentPalette=PALETTES[(idx+1)%PALETTES.length];
-  if(currentPalette==="default")delete document.documentElement.dataset.palette;
-  else document.documentElement.dataset.palette=currentPalette;
+  if(currentPalette==="default"){
+    delete document.documentElement.dataset.palette;
+    document.documentElement.style.setProperty("--accent",ACCENT[view.m]);
+  }else{
+    document.documentElement.dataset.palette=currentPalette;
+  }
   try{localStorage.setItem("pm-palette",currentPalette);}catch(e){}
   setStatus(`Paleta: ${PALETTE_NAMES[currentPalette]}`);
   render();
