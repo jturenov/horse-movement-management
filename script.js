@@ -82,21 +82,26 @@ function renderMeta(){
   document.getElementById("meta").textContent=`Kůň, nar. 2. 4. 2007 · ${a} let · záznamy od února 2026`;
 }
 function renderCal(){
-  const el=document.getElementById("cal"); el.innerHTML="";
-  ["Po","Út","St","Čt","Pá","So","Ne"].forEach(n=>{const d=document.createElement("div");d.className="dow";d.textContent=n;el.appendChild(d);});
-  const first=(new Date(view.y,view.m,1).getDay()+6)%7;
-  for(let i=0;i<first;i++){const e=document.createElement("div");e.className="day empty";el.appendChild(e);}
+  const el=document.getElementById("cal");
   const tk=key(today.getFullYear(),today.getMonth(),today.getDate());
+  const first=(new Date(view.y,view.m,1).getDay()+6)%7;
+
+  let html=["Po","Út","St","Čt","Pá","So","Ne"].map(n=>`<div class="dow">${n}</div>`).join("");
+  html+='<div class="day empty"></div>'.repeat(first);
+
   monthDays(view.y,view.m).forEach(({k,d,v})=>{
-    const b=document.createElement("button");
-    b.type="button"; b.className="day"+(k===sel?" sel":"")+(k===tk?" today":"");
-    if(v&&v.load)b.dataset.load=v.load;
-    const n=document.createElement("span");n.className="n";n.textContent=d;
-    const t=document.createElement("span");t.className="t";t.textContent=v?v.typ.replace("Práce ze země / lehká","Lehká"):"";
-    b.append(n,t);
-    b.setAttribute("aria-label",`${d}. ${MONTHS[view.m]}${v?", "+v.typ+", "+(v.load||""):""}`);
-    b.onclick=()=>{sel=k;render();};
-    el.appendChild(b);
+    const classes=["day",k===sel?"sel":"",k===tk?"today":""].filter(Boolean).join(" ");
+    const typ=v?v.typ.replace("Práce ze země / lehká","Lehká"):"";
+    html+=`<button type="button" class="${classes}" ${v?.load?`data-load="${v.load}"`:""}
+      aria-label="${d}. ${MONTHS[view.m]}${v?`, ${v.typ}, ${v.load||""}`:""}">
+      <span class="n">${d}</span>
+      <span class="t">${typ}</span>
+    </button>`;
+  });
+  el.innerHTML=html;
+
+  el.querySelectorAll(".day:not(.empty)").forEach((btn,i)=>{
+    btn.onclick=()=>{sel=monthDays(view.y,view.m)[i].k;render();};
   });
 }
 function seg(id,items,cur,onPick){
@@ -128,70 +133,83 @@ function renderFormControls(v){
 }
 function renderStats(){
   const c=countMonth(view.y,view.m);
-  const el=document.getElementById("stats");el.innerHTML="";
   const labels={"Lehká práce":"dnů lehké práce","Skokovka":"dnů skokovky a závodů","Regenerace":"dnů regenerace","Laser":"laserových terapií"};
-  SECTIONS.forEach(s=>{
-    const d=document.createElement("div");d.className="stat";
-    d.innerHTML=`<b>${c.sections[s]}</b><span>${labels[s]}</span>`;el.appendChild(d);
-  });
+
+  document.getElementById("stats").innerHTML=SECTIONS.map(s=>
+    `<div class="stat"><b>${c.sections[s]}</b><span>${labels[s]}</span></div>`
+  ).join("");
+
   const sum=SECTIONS.reduce((a,s)=>a+c.sections[s],0);
-  const ch=document.getElementById("check");
-  if(sum===c.total){ch.className="check ok";ch.textContent=`${sum} z ${c.total} dnů, součet sedí.`;}
-  else{ch.className="check bad";ch.textContent=`${sum} z ${c.total} dnů zapsáno, chybí ${c.total-sum}.`;}
-  const bars=document.getElementById("bars");bars.innerHTML="";
+  const check=document.getElementById("check");
+  check.className=sum===c.total?"check ok":"check bad";
+  check.textContent=sum===c.total?`${sum} z ${c.total} dnů, součet sedí.`:`${sum} z ${c.total} dnů zapsáno, chybí ${c.total-sum}.`;
+
   const denom=c.logged||1;
-  LOADS.forEach(l=>{
+  document.getElementById("bars").innerHTML=LOADS.map(l=>{
     const p=Math.round(100*c.loads[l]/denom);
-    const r=document.createElement("div");r.className="bar";
-    r.innerHTML=`<span>${l}</span><div class="track"><div class="fill" style="width:${p}%;background:${LOAD_COLOR[l]}"></div></div><span class="pct">${p} %</span>`;
-    bars.appendChild(r);
-  });
+    return `<div class="bar">
+      <span>${l}</span>
+      <div class="track"><div class="fill" style="width:${p}%;background:${LOAD_COLOR[l]}"></div></div>
+      <span class="pct">${p} %</span>
+    </div>`;
+  }).join("");
 }
 function renderAlerts(){
-  const el=document.getElementById("alerts");el.innerHTML="";
   const all=Object.keys(days).sort();
-  const add=(t,good)=>{const d=document.createElement("div");d.className="alert"+(good?" good":"");d.textContent=t;el.appendChild(d);};
-  // streak of Střední/Vysoká ending at latest logged day
-  let streak=0,maxStreak=0,maxEnd="";
-  let prev=null;
+  const alerts=[];
+
+  // Check for consecutive high-intensity days
+  let streak=0,maxStreak=0,maxEnd="",prev=null;
   all.forEach(k=>{
-    const v=days[k];const hard=v.load==="Střední"||v.load==="Vysoká";
-    const consecutive=prev&&((new Date(k)-new Date(prev))/864e5===1);
-    if(hard){streak=consecutive&&streak>0?streak+1:1;}else streak=0;
+    const isHard=["Střední","Vysoká"].includes(days[k].load);
+    const isConsecutive=prev&&(new Date(k)-new Date(prev))/864e5===1;
+    streak=isHard?(isConsecutive&&streak>0?streak+1:1):0;
     if(streak>maxStreak){maxStreak=streak;maxEnd=k;}
     prev=k;
   });
-  if(streak>=3)add(`Poslední ${streak} zapsané dny po sobě byly se střední nebo vysokou zátěží. Zvažte regeneraci.`);
-  else if(maxStreak>=3)add(`Nejdelší série náročných dní: ${maxStreak} (končí ${maxEnd.split("-").reverse().join(". ")}).`);
-  // days since regeneration
+  if(streak>=3)alerts.push(`Poslední ${streak} zapsané dny po sobě byly se střední nebo vysokou zátěží. Zvažte regeneraci.`);
+  else if(maxStreak>=3)alerts.push(`Nejdelší série náročných dní: ${maxStreak} (končí ${maxEnd.split("-").reverse().join(". ")}).`);
+
+  // Days since last regeneration
   const lastReg=[...all].reverse().find(k=>days[k].load==="Regenerace");
-  if(all.length&&lastReg){
+  if(lastReg){
     const gap=Math.round((new Date(all[all.length-1])-new Date(lastReg))/864e5);
-    if(gap>=5)add(`Od poslední regenerace uběhlo ${gap} dní.`);
+    if(gap>=5)alerts.push(`Od poslední regenerace uběhlo ${gap} dní.`);
   }
-  // week with no rest
-  const wk={};
-  all.forEach(k=>{const d=new Date(k);const t=new Date(d);t.setDate(d.getDate()-((d.getDay()+6)%7));const w=t.toISOString().slice(0,10);(wk[w]=wk[w]||[]).push(days[k]);});
-  const noRest=Object.entries(wk).filter(([,a])=>a.length>=6&&!a.some(v=>v.load==="Regenerace")).map(([w])=>w);
-  if(noRest.length)add(`Týdny bez jediného dne regenerace: ${noRest.length}. Poslední od ${noRest[noRest.length-1].split("-").reverse().join(". ")}.`);
-  if(!el.children.length)add(all.length?"Nic nápadného, rozložení zátěže vypadá vyrovnaně.":"Po zapsání prvních dnů tu uvidíte série náročných dní a odpočinek.",true);
+
+  // Weeks without rest
+  const weeks={};
+  all.forEach(k=>{
+    const d=new Date(k);
+    const monday=new Date(d);
+    monday.setDate(d.getDate()-((d.getDay()+6)%7));
+    const w=monday.toISOString().slice(0,10);
+    (weeks[w]=weeks[w]||[]).push(days[k]);
+  });
+  const noRest=Object.entries(weeks).filter(([,days])=>days.length>=6&&!days.some(v=>v.load==="Regenerace"));
+  if(noRest.length)alerts.push(`Týdny bez jediného dne regenerace: ${noRest.length}. Poslední od ${noRest[noRest.length-1][0].split("-").reverse().join(". ")}.`);
+
+  document.getElementById("alerts").innerHTML=alerts.length
+    ?alerts.map(a=>`<div class="alert">${a}</div>`).join("")
+    :`<div class="alert good">${all.length?"Nic nápadného, rozložení zátěže vypadá vyrovnaně.":"Po zapsání prvních dnů tu uvidíte série náročných dní a odpočinek."}</div>`;
 }
 function renderYear(){
   document.getElementById("yearTitle").textContent=`Rok ${view.y}`;
-  const el=document.getElementById("year");el.innerHTML="";
-  for(let m=0;m<12;m++){
+  const el=document.getElementById("year");
+
+  el.innerHTML=Array.from({length:12},(_,m)=>{
     const c=countMonth(view.y,m);
-    const col=document.createElement("div");col.className="ycol"+(m===view.m?" cur":"");
-    const st=document.createElement("div");st.className="stack";
-    st.title=`${MONTHS[m]}: ${c.logged} z ${c.total} dnů`;
-    LOADS.forEach(l=>{
-      if(!c.loads[l])return;
-      const s=document.createElement("div");s.style.height=(100*c.loads[l]/c.total)+"%";s.style.background=LOAD_COLOR[l];st.appendChild(s);
-    });
-    const sm=document.createElement("small");sm.textContent=MONTHS[m].slice(0,3);
-    col.append(st,sm);col.onclick=()=>{view.m=m;sel=key(view.y,m,1);render();};
-    el.appendChild(col);
-  }
+    const bars=LOADS.map(l=>c.loads[l]?`<div style="height:${100*c.loads[l]/c.total}%;background:${LOAD_COLOR[l]}"></div>`:""
+).join("");
+    return `<div class="ycol${m===view.m?" cur":""}">
+      <div class="stack" title="${MONTHS[m]}: ${c.logged} z ${c.total} dnů">${bars}</div>
+      <small>${MONTHS[m].slice(0,3)}</small>
+    </div>`;
+  }).join("");
+
+  el.querySelectorAll(".ycol").forEach((col,m)=>{
+    col.onclick=()=>{view.m=m;sel=key(view.y,m,1);render();};
+  });
 }
 
 /* ---------- events ---------- */
@@ -291,146 +309,78 @@ function initFilters(){
   const filterSection=document.getElementById("filterSection");
   if(!filterSection)return;
 
-  filterSection.addEventListener("toggle",function(){
+  filterSection.addEventListener("toggle",()=>{
     if(filterSection.open){
-      renderFilterControls();
+      // Build month options
+      const months=new Set();
+      Object.keys(days).forEach(k=>months.add(k.substring(0,7))); // yyyy-mm
+
+      document.getElementById("monthFilters").innerHTML=[...months].sort().reverse().map(ym=>{
+        const [y,m]=ym.split("-");
+        return `<label class="month-checkbox"><input type="checkbox" value="${ym}" checked> ${MONTHS[+m-1]} ${y}</label>`;
+      }).join("");
+
+      seg("typeFilters",TYPY,null,()=>{});
+      seg("loadFilters",LOADS,null,()=>{});
     }
   });
 }
 
-function renderFilterControls(){
-  // Build month checkboxes for all months with data
-  const monthSet=new Set();
-  Object.keys(days).forEach(k=>{
-    const [y,m]=k.split("-");
-    monthSet.add(`${y}-${m}`);
-  });
-  const sortedMonths=[...monthSet].sort().reverse();
-
-  const monthFilters=document.getElementById("monthFilters");
-  monthFilters.innerHTML="";
-  sortedMonths.forEach(ym=>{
-    const [y,m]=ym.split("-");
-    const monthIdx=parseInt(m)-1;
-    const label=document.createElement("label");
-    label.className="month-checkbox";
-    label.innerHTML=`<input type="checkbox" value="${ym}" checked> ${MONTHS[monthIdx]} ${y}`;
-    monthFilters.appendChild(label);
-  });
-
-  // Type filters
-  seg("typeFilters",TYPY,null,()=>{});
-
-  // Load filters
-  seg("loadFilters",LOADS,null,()=>{});
-}
-
 function applyFilters(){
-  const selectedMonths=Array.from(document.querySelectorAll("#monthFilters input:checked")).map(el=>el.value);
-  const selectedTypes=Array.from(document.querySelectorAll("#typeFilters button[aria-pressed='true']")).map(el=>el.textContent);
-  const selectedLoads=Array.from(document.querySelectorAll("#loadFilters button[aria-pressed='true']")).map(el=>el.textContent);
+  const months=Array.from(document.querySelectorAll("#monthFilters input:checked")).map(el=>el.value);
+  const types=Array.from(document.querySelectorAll("#typeFilters button[aria-pressed='true']")).map(el=>el.textContent);
+  const loads=Array.from(document.querySelectorAll("#loadFilters button[aria-pressed='true']")).map(el=>el.textContent);
 
-  if(selectedMonths.length===0){
+  if(!months.length){
     document.getElementById("filterResults").innerHTML='<p class="hint">Vyberte alespoň jeden měsíc.</p>';
     return;
   }
 
-  // Filter days
-  const filtered=Object.entries(days).filter(([k,v])=>{
-    const [y,m]=k.split("-");
-    const ym=`${y}-${m}`;
-    if(!selectedMonths.includes(ym))return false;
-    if(selectedTypes.length>0&&!selectedTypes.includes(v.typ))return false;
-    if(selectedLoads.length>0&&!selectedLoads.includes(v.load))return false;
-    return true;
-  });
+  const filtered=Object.entries(days).filter(([k,v])=>
+    months.includes(k.substring(0,7))&&
+    (!types.length||types.includes(v.typ))&&
+    (!loads.length||loads.includes(v.load))
+  );
 
-  // Calculate statistics
   const stats={sections:{},loads:{},total:filtered.length};
   SECTIONS.forEach(s=>stats.sections[s]=0);
   LOADS.forEach(l=>stats.loads[l]=0);
-
   filtered.forEach(([,v])=>{
     stats.sections[TYP_SECTION[v.typ]]++;
     stats.loads[v.load]++;
   });
 
-  // Render results
-  const results=document.getElementById("filterResults");
-  results.innerHTML=`
+  document.getElementById("filterResults").innerHTML=`
     <div class="filter-summary">
-      <div class="stat">
-        <b>${filtered.length}</b>
-        <span>celkem dnů</span>
-      </div>
-      ${SECTIONS.map(s=>`
-        <div class="stat">
-          <b>${stats.sections[s]}</b>
-          <span>${s}</span>
-        </div>
-      `).join("")}
+      <div class="stat"><b>${filtered.length}</b><span>celkem dnů</span></div>
+      ${SECTIONS.map(s=>`<div class="stat"><b>${stats.sections[s]}</b><span>${s}</span></div>`).join("")}
     </div>
-
     <h3 style="font-size:18px;margin:20px 0 12px">Rozložení zátěže</h3>
     <div class="bars">
-      ${LOADS.map(l=>{
-        const pct=filtered.length>0?Math.round(100*stats.loads[l]/filtered.length):0;
-        return `
-          <div class="bar">
-            <span>${l}</span>
-            <div class="track">
-              <div class="fill" style="width:${pct}%;background:${LOAD_COLOR[l]}"></div>
-            </div>
-            <span class="pct">${pct} %</span>
-          </div>
-        `;
-      }).join("")}
+      ${LOADS.map(l=>`<div class="bar"><span>${l}</span><div class="track"><div class="fill" style="width:${Math.round(100*stats.loads[l]/(filtered.length||1))}%;background:${LOAD_COLOR[l]}"></div></div><span class="pct">${Math.round(100*stats.loads[l]/(filtered.length||1))} %</span></div>`).join("")}
     </div>
-
     <h3 style="font-size:18px;margin:20px 0 12px">Všechny dny (${filtered.length})</h3>
     <table class="filter-table">
-      <thead>
-        <tr>
-          <th>Datum</th>
-          <th>Typ práce</th>
-          <th>Zátěž</th>
-          <th>Poznámka</th>
-        </tr>
-      </thead>
+      <thead><tr><th>Datum</th><th>Typ práce</th><th>Zátěž</th><th>Poznámka</th></tr></thead>
       <tbody>
         ${filtered.sort((a,b)=>b[0].localeCompare(a[0])).map(([k,v])=>{
           const [y,m,d]=k.split("-");
-          return `
-            <tr>
-              <td>${d}.${m}.${y}</td>
-              <td>${v.typ}</td>
-              <td style="color:${LOAD_COLOR[v.load]};font-weight:600">${v.load}</td>
-              <td>${v.note||"-"}</td>
-            </tr>
-          `;
+          return `<tr><td>${d}.${m}.${y}</td><td>${v.typ}</td><td style="color:${LOAD_COLOR[v.load]};font-weight:600">${v.load}</td><td>${v.note||"-"}</td></tr>`;
         }).join("")}
       </tbody>
     </table>
   `;
 }
 
-function resetFilters(){
-  document.querySelectorAll("#monthFilters input").forEach(el=>el.checked=true);
-  document.querySelectorAll("#typeFilters button").forEach(el=>el.setAttribute("aria-pressed","false"));
-  document.querySelectorAll("#loadFilters button").forEach(el=>el.setAttribute("aria-pressed","false"));
-  document.getElementById("filterResults").innerHTML="";
-}
-
 document.getElementById("applyFilters")?.addEventListener("click",applyFilters);
-document.getElementById("resetFilters")?.addEventListener("click",resetFilters);
-
-// Make type/load filters toggle
+document.getElementById("resetFilters")?.addEventListener("click",()=>{
+  document.querySelectorAll("#monthFilters input").forEach(el=>el.checked=true);
+  document.querySelectorAll("#typeFilters button,#loadFilters button").forEach(el=>el.setAttribute("aria-pressed","false"));
+  document.getElementById("filterResults").innerHTML="";
+});
 document.addEventListener("click",e=>{
-  if(e.target.closest("#typeFilters button")||e.target.closest("#loadFilters button")){
-    const btn=e.target.closest("button");
-    const pressed=btn.getAttribute("aria-pressed")==="true";
-    btn.setAttribute("aria-pressed",String(!pressed));
-  }
+  const btn=e.target.closest("#typeFilters button, #loadFilters button");
+  if(btn)btn.setAttribute("aria-pressed",btn.getAttribute("aria-pressed")!=="true");
 });
 
 /* ---------- init ---------- */
