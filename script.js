@@ -147,25 +147,24 @@ function renderStats(){
   check.className=sum===c.total?"check ok":"check bad";
   check.textContent=sum===c.total?`${sum} z ${c.total} dnů, součet sedí.`:`${sum} z ${c.total} dnů zapsáno, chybí ${c.total-sum}.`;
 
-  // ApexCharts for intensity distribution
+  // ApexCharts for intensity distribution - only show non-zero data
   const denom=c.logged||1;
-  const percentages=LOADS.map(l=>Math.round(100*c.loads[l]/denom));
+  const chartData=LOADS.map((l,i)=>({
+    label:l,
+    value:Math.round(100*c.loads[l]/denom),
+    color:['--c-reg','--c-leh','--c-str','--c-vys'][i]
+  })).filter(d=>d.value>0);
 
   const barsEl=document.getElementById("bars");
   barsEl.innerHTML='<div id="intensityChart"></div>';
 
   const options={
-    series:[{name:'Podíl',data:percentages}],
-    chart:{type:'bar',height:280,toolbar:{show:false},animations:{enabled:true,speed:800}},
+    series:[{name:'Podíl',data:chartData.map(d=>d.value)}],
+    chart:{type:'bar',height:Math.max(200,chartData.length*70),toolbar:{show:false},animations:{enabled:true,speed:800}},
     plotOptions:{bar:{horizontal:true,distributed:true,barHeight:'60%',dataLabels:{position:'top'}}},
-    colors:[
-      getComputedStyle(document.documentElement).getPropertyValue('--c-reg').trim(),
-      getComputedStyle(document.documentElement).getPropertyValue('--c-leh').trim(),
-      getComputedStyle(document.documentElement).getPropertyValue('--c-str').trim(),
-      getComputedStyle(document.documentElement).getPropertyValue('--c-vys').trim()
-    ],
+    colors:chartData.map(d=>getComputedStyle(document.documentElement).getPropertyValue(d.color).trim()),
     dataLabels:{enabled:true,formatter:v=>`${v} %`,style:{fontSize:'14px',fontWeight:600}},
-    xaxis:{categories:LOADS,labels:{show:false},axisBorder:{show:false},axisTicks:{show:false}},
+    xaxis:{categories:chartData.map(d=>d.label),labels:{show:false},axisBorder:{show:false},axisTicks:{show:false}},
     yaxis:{labels:{style:{fontSize:'14px',fontWeight:500}}},
     grid:{show:false},
     legend:{show:false},
@@ -400,19 +399,19 @@ function applyFilters(){
     </table>
   `;
 
-  const percentages=LOADS.map(l=>Math.round(100*stats.loads[l]/(filtered.length||1)));
+  const filterChartData=LOADS.map((l,i)=>({
+    label:l,
+    value:Math.round(100*stats.loads[l]/(filtered.length||1)),
+    color:['--c-reg','--c-leh','--c-str','--c-vys'][i]
+  })).filter(d=>d.value>0);
+
   const filterOptions={
-    series:[{name:'Podíl',data:percentages}],
-    chart:{type:'bar',height:280,toolbar:{show:false},animations:{enabled:true,speed:800}},
+    series:[{name:'Podíl',data:filterChartData.map(d=>d.value)}],
+    chart:{type:'bar',height:Math.max(200,filterChartData.length*70),toolbar:{show:false},animations:{enabled:true,speed:800}},
     plotOptions:{bar:{horizontal:true,distributed:true,barHeight:'60%',dataLabels:{position:'top'}}},
-    colors:[
-      getComputedStyle(document.documentElement).getPropertyValue('--c-reg').trim(),
-      getComputedStyle(document.documentElement).getPropertyValue('--c-leh').trim(),
-      getComputedStyle(document.documentElement).getPropertyValue('--c-str').trim(),
-      getComputedStyle(document.documentElement).getPropertyValue('--c-vys').trim()
-    ],
+    colors:filterChartData.map(d=>getComputedStyle(document.documentElement).getPropertyValue(d.color).trim()),
     dataLabels:{enabled:true,formatter:v=>`${v} %`,style:{fontSize:'14px',fontWeight:600}},
-    xaxis:{categories:LOADS,labels:{show:false},axisBorder:{show:false},axisTicks:{show:false}},
+    xaxis:{categories:filterChartData.map(d=>d.label),labels:{show:false},axisBorder:{show:false},axisTicks:{show:false}},
     yaxis:{labels:{style:{fontSize:'14px',fontWeight:500}}},
     grid:{show:false},
     legend:{show:false},
