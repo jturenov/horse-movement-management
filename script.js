@@ -147,15 +147,34 @@ function renderStats(){
   check.className=sum===c.total?"check ok":"check bad";
   check.textContent=sum===c.total?`${sum} z ${c.total} dnů, součet sedí.`:`${sum} z ${c.total} dnů zapsáno, chybí ${c.total-sum}.`;
 
+  // ApexCharts for intensity distribution
   const denom=c.logged||1;
-  document.getElementById("bars").innerHTML=LOADS.map(l=>{
-    const p=Math.round(100*c.loads[l]/denom);
-    return `<div class="bar">
-      <span>${l}</span>
-      <div class="track"><div class="fill" style="width:${p}%;background:${LOAD_COLOR[l]}"></div></div>
-      <span class="pct">${p} %</span>
-    </div>`;
-  }).join("");
+  const percentages=LOADS.map(l=>Math.round(100*c.loads[l]/denom));
+
+  const barsEl=document.getElementById("bars");
+  barsEl.innerHTML='<div id="intensityChart"></div>';
+
+  const options={
+    series:[{name:'Podíl',data:percentages}],
+    chart:{type:'bar',height:280,toolbar:{show:false},animations:{enabled:true,speed:800}},
+    plotOptions:{bar:{horizontal:true,distributed:true,barHeight:'60%',dataLabels:{position:'top'}}},
+    colors:[
+      getComputedStyle(document.documentElement).getPropertyValue('--c-reg').trim(),
+      getComputedStyle(document.documentElement).getPropertyValue('--c-leh').trim(),
+      getComputedStyle(document.documentElement).getPropertyValue('--c-str').trim(),
+      getComputedStyle(document.documentElement).getPropertyValue('--c-vys').trim()
+    ],
+    dataLabels:{enabled:true,formatter:v=>`${v} %`,style:{fontSize:'14px',fontWeight:600}},
+    xaxis:{categories:LOADS,labels:{show:false},axisBorder:{show:false},axisTicks:{show:false}},
+    yaxis:{labels:{style:{fontSize:'14px',fontWeight:500}}},
+    grid:{show:false},
+    legend:{show:false},
+    tooltip:{y:{formatter:v=>`${v}% dnů`}}
+  };
+
+  if(window.intensityChartInstance)window.intensityChartInstance.destroy();
+  window.intensityChartInstance=new ApexCharts(document.querySelector("#intensityChart"),options);
+  window.intensityChartInstance.render();
 }
 function renderAlerts(){
   const all=Object.keys(days).sort();
@@ -361,15 +380,14 @@ function applyFilters(){
     stats.loads[v.load]++;
   });
 
-  document.getElementById("filterResults").innerHTML=`
+  const resultsEl=document.getElementById("filterResults");
+  resultsEl.innerHTML=`
     <div class="filter-summary">
       <div class="stat"><b>${filtered.length}</b><span>celkem dnů</span></div>
       ${SECTIONS.map(s=>`<div class="stat"><b>${stats.sections[s]}</b><span>${s}</span></div>`).join("")}
     </div>
     <h3 style="font-size:18px;margin:20px 0 12px">Rozložení zátěže</h3>
-    <div class="bars">
-      ${LOADS.map(l=>`<div class="bar"><span>${l}</span><div class="track"><div class="fill" style="width:${Math.round(100*stats.loads[l]/(filtered.length||1))}%;background:${LOAD_COLOR[l]}"></div></div><span class="pct">${Math.round(100*stats.loads[l]/(filtered.length||1))} %</span></div>`).join("")}
-    </div>
+    <div id="filterChart"></div>
     <h3 style="font-size:18px;margin:20px 0 12px">Všechny dny (${filtered.length})</h3>
     <table class="filter-table">
       <thead><tr><th>Datum</th><th>Typ práce</th><th>Zátěž</th><th>Poznámka</th></tr></thead>
@@ -381,6 +399,29 @@ function applyFilters(){
       </tbody>
     </table>
   `;
+
+  const percentages=LOADS.map(l=>Math.round(100*stats.loads[l]/(filtered.length||1)));
+  const filterOptions={
+    series:[{name:'Podíl',data:percentages}],
+    chart:{type:'bar',height:280,toolbar:{show:false},animations:{enabled:true,speed:800}},
+    plotOptions:{bar:{horizontal:true,distributed:true,barHeight:'60%',dataLabels:{position:'top'}}},
+    colors:[
+      getComputedStyle(document.documentElement).getPropertyValue('--c-reg').trim(),
+      getComputedStyle(document.documentElement).getPropertyValue('--c-leh').trim(),
+      getComputedStyle(document.documentElement).getPropertyValue('--c-str').trim(),
+      getComputedStyle(document.documentElement).getPropertyValue('--c-vys').trim()
+    ],
+    dataLabels:{enabled:true,formatter:v=>`${v} %`,style:{fontSize:'14px',fontWeight:600}},
+    xaxis:{categories:LOADS,labels:{show:false},axisBorder:{show:false},axisTicks:{show:false}},
+    yaxis:{labels:{style:{fontSize:'14px',fontWeight:500}}},
+    grid:{show:false},
+    legend:{show:false},
+    tooltip:{y:{formatter:v=>`${v}% dnů`}}
+  };
+
+  if(window.filterChartInstance)window.filterChartInstance.destroy();
+  window.filterChartInstance=new ApexCharts(document.querySelector("#filterChart"),filterOptions);
+  window.filterChartInstance.render();
 }
 
 document.getElementById("applyFilters")?.addEventListener("click",applyFilters);
